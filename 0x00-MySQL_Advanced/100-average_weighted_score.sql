@@ -1,44 +1,26 @@
--- This SQL script defines a stored procedure named ComputeAverageWeightedScoreForUser
--- The procedure calculates and updates the average weighted score for a specified user.
-
 -- Drop the procedure if it already exists
 DROP PROCEDURE IF EXISTS ComputeAverageWeightedScoreForUser;
 
--- Change the delimiter to $$ to handle the semicolons within the procedure
+-- Change the delimiter to avoid conflicts with semicolons in the procedure
 DELIMITER $$
 
--- Create the stored procedure
-CREATE PROCEDURE ComputeAverageWeightedScoreForUser (user_id INT)
+-- Create the stored procedure to compute the average weighted score for a user
+CREATE PROCEDURE ComputeAverageWeightedScoreForUser(user_id INT)
 BEGIN
-    -- Declare variables to store total weighted score and total weight
-    DECLARE total_weighted_score INT DEFAULT 0;
-    DECLARE total_weight INT DEFAULT 0;
+    -- Declare a variable to store the weighted average score
+    DECLARE w_avg_score FLOAT;
 
-    -- Calculate the sum of (corrections.score * projects.weight) for the specified user
-    SELECT SUM(corrections.score * projects.weight)
-        INTO total_weighted_score
-        FROM corrections
-            INNER JOIN projects
-                ON corrections.project_id = projects.id
-        WHERE corrections.user_id = user_id;
+    -- Calculate the weighted average score using a SELECT query
+    SET w_avg_score = (SELECT SUM(score * weight) / SUM(weight) 
+                        FROM users AS U 
+                        JOIN corrections AS C ON U.id = C.user_id 
+                        JOIN projects AS P ON C.project_id = P.id 
+                        WHERE U.id = user_id);
 
-    -- Calculate the sum of project weights for the specified user
-    SELECT SUM(projects.weight)
-        INTO total_weight
-        FROM corrections
-            INNER JOIN projects
-                ON corrections.project_id = projects.id
-        WHERE corrections.user_id = user_id;
+    -- Update the users table with the computed average score for the specified user
+    UPDATE users SET average_score = w_avg_score WHERE id = user_id;
+END
+$$
 
-    -- Check if the total weight is zero
-    IF total_weight = 0 THEN
-        -- If total weight is zero, set the user's average score to 0
-        UPDATE users
-            SET users.average_score = 0
-            WHERE users.id = user_id;
-    ELSE
-        -- If total weight is non-zero, calculate and update the average score
-        UPDATE users
-            SET users.average_score = total_weighted_score / total_weight
-     
-
+-- Reset the delimiter back to semicolon
+DELIMITER ;
